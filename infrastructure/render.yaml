@@ -1,0 +1,14 @@
+# Render deploy config for the backend service.
+# Fill in once the Render project exists — this is a starting point.
+services:
+  - type: web
+    name: studysage-backend
+    env: python
+    buildCommand: "pip install -r backend/requirements.txt"
+    startCommand: "uvicorn main:app --host 0.0.0.0 --port $PORT"
+    rootDir: backend
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
