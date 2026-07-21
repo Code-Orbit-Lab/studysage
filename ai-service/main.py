@@ -5,7 +5,10 @@ Owner: Saurabh
 Run locally:
     uvicorn main:app --reload --port 8001
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+
+from rag import answer_query
 
 app = FastAPI(title="StudySage AI Service", version="0.1.0")
 
@@ -16,14 +19,6 @@ def health_check():
 
 
 # TODO(saurabh): wire up as each piece is built
-# from rag.pipeline import router as rag_router
-# app.include_router(rag_router, prefix="/rag", tags=["rag"])
-from fastapi import HTTPException
-from pydantic import BaseModel
-
-from rag import answer_query
-
-
 class QueryRequest(BaseModel):
     query: str
     subject_id: str
