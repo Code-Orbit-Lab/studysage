@@ -5,9 +5,27 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: studysage
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: backend
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/studysage
+      JWT_SECRET: ci-test-secret
+      GOOGLE_CLIENT_ID: ci-test-client-id.apps.googleusercontent.com
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -15,4 +33,5 @@ jobs:
       - run: pip install -r requirements.txt
       - run: pip install ruff pytest
       - run: ruff check .
-      - run: pytest || true   # TODO: remove `|| true` once tests exist
+      - run: alembic upgrade head
+      - run: pytest
