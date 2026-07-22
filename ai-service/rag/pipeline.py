@@ -14,6 +14,7 @@ import re
 import google.generativeai as genai
 
 from embeddings import retrieve
+from gemini_utils import safe_generate_content
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_API_KEY:
@@ -22,10 +23,6 @@ if GEMINI_API_KEY:
 GENERATION_MODEL = "gemini-2.5-flash"
 DEFAULT_TOP_K = 5
 
-# Patterns commonly seen in prompt-injection attempts. This is intentionally
-# a coarse net (not a security boundary) - matches get logged for review,
-# not silently dropped, since false positives on legitimate academic content
-# (e.g. a document literally discussing prompt injection) are expected.
 SUSPICIOUS_PATTERNS = [
     r"ignore (all |previous |the )?(above |prior )?instructions",
     r"disregard (all |previous |the )?(above |prior )?instructions",
@@ -69,9 +66,6 @@ def _build_context_block(chunks: list[dict]) -> str:
 
 
 def _flag_suspicious_chunks(chunks: list[dict]) -> list[int]:
-    """Returns indices of chunks matching known injection patterns.
-    Used for logging/monitoring, not for blocking - a false positive here
-    would incorrectly refuse to answer using legitimate uploaded material."""
     flagged = []
     for i, chunk in enumerate(chunks):
         text_lower = chunk["text"].lower()
@@ -97,8 +91,9 @@ def answer_query(query: str, subject_id: str, top_k: int = DEFAULT_TOP_K) -> dic
         {
             "answer": str,
             "citations": [{"document_id": str, "page": int, "snippet": str}, ...],
-            "flagged_chunks": [int, ...],  # indices with suspicious patterns, for logging
+            "flagged_chunks": [int, ...],
         }
+    Raises RuntimeError if Gemini isn't configured or the API call fails.
     """
     if not GEMINI_API_KEY:
         raise RuntimeError("GEMINI_API_KEY not configured")
@@ -114,8 +109,6 @@ def answer_query(query: str, subject_id: str, top_k: int = DEFAULT_TOP_K) -> dic
 
     flagged_chunks = _flag_suspicious_chunks(chunks)
     if flagged_chunks:
-        # Log for review rather than block - a real monitoring setup would
-        # send this to actual logging infra; print is a placeholder for now.
         print(f"[guardrail] Suspicious pattern in chunks {flagged_chunks} for subject {subject_id}")
 
     context_block = _build_context_block(chunks)
@@ -126,7 +119,7 @@ def answer_query(query: str, subject_id: str, top_k: int = DEFAULT_TOP_K) -> dic
     )
 
     model = genai.GenerativeModel(GENERATION_MODEL)
-    response = model.generate_content(prompt)
+    response = safe_generate_content(model, prompt)
     raw_text = response.text
 
     cited_indices = _extract_cited_indices(raw_text)

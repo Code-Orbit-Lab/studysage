@@ -9,6 +9,7 @@ import os
 import google.generativeai as genai
 
 from embeddings import get_all_chunks_for_document
+from gemini_utils import safe_generate_content, truncate_content
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_API_KEY:
@@ -38,6 +39,8 @@ def summarize_document(subject_id: str, document_id: str, length: str = "short")
     """
     length: one of "short", "detailed", "chapter-wise"
     Returns: {"summary": str, "length": str, "chunk_count": int}
+    Raises ValueError for bad input, RuntimeError if Gemini isn't configured
+    or the API call fails.
     """
     if length not in SUMMARY_LENGTH_INSTRUCTIONS:
         raise ValueError(f"length must be one of {list(SUMMARY_LENGTH_INSTRUCTIONS)}")
@@ -49,7 +52,7 @@ def summarize_document(subject_id: str, document_id: str, length: str = "short")
     if not chunks:
         return {"summary": "No content found for this document.", "length": length, "chunk_count": 0}
 
-    full_text = "\n\n".join(c["text"] for c in chunks)
+    full_text = truncate_content("\n\n".join(c["text"] for c in chunks))
 
     prompt = PROMPT_TEMPLATE.format(
         length_instruction=SUMMARY_LENGTH_INSTRUCTIONS[length],
@@ -57,6 +60,6 @@ def summarize_document(subject_id: str, document_id: str, length: str = "short")
     )
 
     model = genai.GenerativeModel(GENERATION_MODEL)
-    response = model.generate_content(prompt)
+    response = safe_generate_content(model, prompt)
 
     return {"summary": response.text.strip(), "length": length, "chunk_count": len(chunks)}
