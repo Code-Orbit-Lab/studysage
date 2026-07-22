@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from rag import answer_query
 from summarizer import summarize_document
-
+from quiz import generate_quiz
 
 
 app = FastAPI(title="StudySage AI Service", version="0.1.0")
@@ -43,6 +43,24 @@ class SummaryRequest(BaseModel):
 def summarize_endpoint(request: SummaryRequest):
     try:
         return summarize_document(request.subject_id, request.document_id, request.length)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+class QuizRequest(BaseModel):
+    subject_id: str
+    document_id: str
+    question_count: int = 5
+    types: list[str] = ["mcq", "true_false", "fill_blank"]
+
+
+@app.post("/quiz")
+def quiz_endpoint(request: QuizRequest):
+    try:
+        return generate_quiz(request.subject_id, request.document_id, request.question_count, request.types)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except RuntimeError as e:
