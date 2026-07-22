@@ -1,8 +1,7 @@
 """Flashcard generation — question/answer pairs with difficulty tags.
 Owner: Saurabh
 
-Same JSON-mode pattern as quiz.py: ask Gemini for structured output
-directly rather than parsing free text.
+Same JSON-mode + schema-validation pattern as quiz.py.
 """
 import json
 import os
@@ -10,6 +9,7 @@ import os
 import google.generativeai as genai
 
 from embeddings import get_all_chunks_for_document
+from gemini_utils import safe_generate_content, truncate_content
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_API_KEY:
@@ -39,6 +39,19 @@ Document content:
 """
 
 VALID_DIFFICULTIES = {"easy", "medium", "hard", "mixed"}
+CARD_DIFFICULTY_VALUES = {"easy", "medium", "hard"}
+
+
+def _validate_flashcards(flashcards: list) -> None:
+    for i, card in enumerate(flashcards):
+        if not isinstance(card, dict):
+            raise RuntimeError(f"Flashcard {i} is not an object")
+        if not card.get("question") or not isinstance(card["question"], str):
+            raise RuntimeError(f"Flashcard {i} missing a valid 'question' string")
+        if not card.get("answer") or not isinstance(card["answer"], str):
+            raise RuntimeError(f"Flashcard {i} missing a valid 'answer' string")
+        if card.get("difficulty") not in CARD_DIFFICULTY_VALUES:
+            raise RuntimeError(f"Flashcard {i} has invalid or missing difficulty: {card.get('difficulty')!r}")
 
 
 def generate_flashcards(
@@ -49,8 +62,8 @@ def generate_flashcards(
 ) -> dict:
     """
     Returns: {"flashcards": [...], "card_count": int}
-    Raises ValueError for bad input, RuntimeError if Gemini isn't configured
-    or returns unparseable output.
+    Raises ValueError for bad input, RuntimeError if Gemini isn't configured,
+    the API call fails, or the model's output doesn't match our schema.
     """
     if difficulty not in VALID_DIFFICULTIES:
         raise ValueError(f"difficulty must be one of {VALID_DIFFICULTIES}")
@@ -64,7 +77,7 @@ def generate_flashcards(
     if not chunks:
         return {"flashcards": [], "card_count": 0}
 
-    full_text = "\n\n".join(c["text"] for c in chunks)
+    full_text = truncate_content("\n\n".join(c["text"] for c in chunks))
 
     prompt = PROMPT_TEMPLATE.format(
         card_count=card_count,
@@ -74,7 +87,8 @@ def generate_flashcards(
     )
 
     model = genai.GenerativeModel(GENERATION_MODEL)
-    response = model.generate_content(
+    response = safe_generate_content(
+        model,
         prompt,
         generation_config=genai.types.GenerationConfig(response_mime_type="application/json"),
     )
@@ -86,5 +100,7 @@ def generate_flashcards(
 
     if not isinstance(flashcards, list):
         raise RuntimeError("Model output was not a JSON array of flashcards")
+
+    _validate_flashcards(flashcards)
 
     return {"flashcards": flashcards, "card_count": len(flashcards)}

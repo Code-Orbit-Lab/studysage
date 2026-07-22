@@ -1,5 +1,3 @@
-# TODO(saurabh): PDF/DOCX/PPTX parsing + OCR for images
-# def parse_document(file_path: str) -> str: ...
 """Unified document parsing entrypoint. Owner: Saurabh
 
 Every format returns the same shape: [{"page": int, "text": str}, ...]

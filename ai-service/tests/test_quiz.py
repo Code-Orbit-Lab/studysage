@@ -72,3 +72,23 @@ def test_generate_quiz_raises_on_malformed_json(mock_model_class):
         assert False, "should have raised RuntimeError"
     except RuntimeError:
         pass
+
+@patch("quiz.quiz.genai.GenerativeModel")
+def test_generate_quiz_raises_on_mcq_missing_options(mock_model_class):
+    bad_questions = [
+        {"type": "mcq", "question": "What powers the cell?", "answer": "Mitochondria", "difficulty": "easy"}
+        # missing "options" entirely
+    ]
+    mock_model_instance = MagicMock()
+    mock_model_instance.generate_content.return_value = _mock_gemini_json_response(bad_questions)
+    mock_model_class.return_value = mock_model_instance
+
+    pages = [{"page": 1, "text": "The mitochondria produces ATP."}]
+    chunks = chunk_pages(pages, chunk_size=100, overlap=10)
+    embed_and_store(chunks, subject_id="test_quiz_badschema_subject", document_id="test_quiz_badschema_doc")
+
+    try:
+        generate_quiz("test_quiz_badschema_subject", "test_quiz_badschema_doc", question_count=1)
+        assert False, "should have raised RuntimeError for missing options"
+    except RuntimeError:
+        pass

@@ -11,6 +11,8 @@ from datetime import date
 
 import google.generativeai as genai
 
+from gemini_utils import safe_generate_content
+
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
@@ -42,6 +44,30 @@ the deadline.
 """
 
 
+def _validate_plan(plan: list) -> None:
+    for i, day in enumerate(plan):
+        if not isinstance(day, dict):
+            raise RuntimeError(f"Day {i} is not an object")
+        if not isinstance(day.get("day"), int):
+            raise RuntimeError(f"Day {i} missing a valid integer 'day'")
+        if not day.get("date") or not isinstance(day["date"], str):
+            raise RuntimeError(f"Day {i} missing a valid 'date' string")
+
+        sessions = day.get("sessions")
+        if not isinstance(sessions, list):
+            raise RuntimeError(f"Day {i} missing a valid 'sessions' list")
+
+        for j, session in enumerate(sessions):
+            if not isinstance(session, dict):
+                raise RuntimeError(f"Day {i} session {j} is not an object")
+            if not session.get("subject") or not isinstance(session["subject"], str):
+                raise RuntimeError(f"Day {i} session {j} missing a valid 'subject'")
+            if not isinstance(session.get("hours"), (int, float)):
+                raise RuntimeError(f"Day {i} session {j} missing valid numeric 'hours'")
+            if not session.get("focus") or not isinstance(session["focus"], str):
+                raise RuntimeError(f"Day {i} session {j} missing a valid 'focus'")
+
+
 def generate_study_plan(
     subjects: list[dict],
     deadline: str,
@@ -54,8 +80,8 @@ def generate_study_plan(
     start_date: "YYYY-MM-DD", defaults to today
 
     Returns: {"plan": [...], "days_available": int}
-    Raises ValueError for bad input, RuntimeError if Gemini isn't configured
-    or returns unparseable output.
+    Raises ValueError for bad input, RuntimeError if Gemini isn't configured,
+    the API call fails, or the model's output doesn't match our schema.
     """
     if not subjects:
         raise ValueError("subjects list cannot be empty")
@@ -91,7 +117,8 @@ def generate_study_plan(
     )
 
     model = genai.GenerativeModel(GENERATION_MODEL)
-    response = model.generate_content(
+    response = safe_generate_content(
+        model,
         prompt,
         generation_config=genai.types.GenerationConfig(response_mime_type="application/json"),
     )
@@ -103,5 +130,7 @@ def generate_study_plan(
 
     if not isinstance(plan, list):
         raise RuntimeError("Model output was not a JSON array of days")
+
+    _validate_plan(plan)
 
     return {"plan": plan, "days_available": days_available}
