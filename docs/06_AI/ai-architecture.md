@@ -79,3 +79,17 @@ All reuse the same retrieval step as chat, but swap the generation prompt:
 Lightweight, not academic: a test set of ~20 question/document pairs where
 the correct page is known ahead of time, checked after any change to
 chunking, embeddings, or the retrieval prompt.
+
+
+## Backend → AI Service Contract (needed for `feature/upload-api`)
+The backend's upload endpoint calls this after saving a file, in a
+background task (so the client gets a fast `202` and doesn't wait on
+parsing). **This endpoint doesn't exist in `ai-service/` yet — Saurabh
+owns building it**, matching the parser/chunker/embedder modules already
+in place.
+
+`POST /process` (ai-service, port 8001)
+- **Request:** `{ "document_id": uuid, "subject_id": uuid, "storage_path": str, "file_type": "pdf"|"docx"|"pptx"|"image" }`
+- **Expected behavior:** parse the file at `storage_path` → chunk → embed → store in the vector DB under `subject_id`, using the existing `parser`/`embeddings` modules.
+- **Response:** `200` on success (body currently unused by the backend beyond the status code — free to extend, e.g. `{"chunks_indexed": int}`), non-`200` or unreachable = backend marks the document `failed`.
+- **Backend's behavior on failure:** a 3s connect / 10s total timeout, any error (including connection refused if `ai-service` isn't running) is caught and the document status becomes `failed` rather than the upload request hanging or erroring — see `backend/services/ai_client.py`.
