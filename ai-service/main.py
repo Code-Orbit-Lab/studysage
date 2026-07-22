@@ -6,25 +6,33 @@ Run locally:
     uvicorn main:app --reload --port 8001
 """
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
+
 from rag import answer_query
 from summarizer import summarize_document
 from quiz import generate_quiz
 from flashcards import generate_flashcards
 from planner import generate_study_plan
 
-
 app = FastAPI(title="StudySage AI Service", version="0.1.0")
+
 
 @app.get("/health")
 def health_check():
     return {"status": "ok", "service": "studysage-ai"}
 
 
-# TODO(saurabh): wire up as each piece is built
 class QueryRequest(BaseModel):
-    query: str
-    subject_id: str
+    query: str = Field(..., min_length=1, max_length=2000)
+    subject_id: str = Field(..., min_length=1, max_length=100)
+
+    @field_validator("query", "subject_id")
+    @classmethod
+    def strip_and_check_not_blank(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("must not be blank or whitespace-only")
+        return v
 
 
 @app.post("/query")
@@ -36,9 +44,17 @@ def query_endpoint(request: QueryRequest):
 
 
 class SummaryRequest(BaseModel):
-    subject_id: str
-    document_id: str
+    subject_id: str = Field(..., min_length=1, max_length=100)
+    document_id: str = Field(..., min_length=1, max_length=100)
     length: str = "short"
+
+    @field_validator("subject_id", "document_id")
+    @classmethod
+    def strip_and_check_not_blank(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("must not be blank or whitespace-only")
+        return v
 
 
 @app.post("/summarize")
@@ -51,12 +67,19 @@ def summarize_endpoint(request: SummaryRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 class QuizRequest(BaseModel):
-    subject_id: str
-    document_id: str
-    question_count: int = 5
+    subject_id: str = Field(..., min_length=1, max_length=100)
+    document_id: str = Field(..., min_length=1, max_length=100)
+    question_count: int = Field(default=5, ge=1, le=20)
     types: list[str] = ["mcq", "true_false", "fill_blank"]
+
+    @field_validator("subject_id", "document_id")
+    @classmethod
+    def strip_and_check_not_blank(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("must not be blank or whitespace-only")
+        return v
 
 
 @app.post("/quiz")
@@ -70,10 +93,18 @@ def quiz_endpoint(request: QuizRequest):
 
 
 class FlashcardRequest(BaseModel):
-    subject_id: str
-    document_id: str
-    card_count: int = 10
+    subject_id: str = Field(..., min_length=1, max_length=100)
+    document_id: str = Field(..., min_length=1, max_length=100)
+    card_count: int = Field(default=10, ge=1, le=30)
     difficulty: str = "mixed"
+
+    @field_validator("subject_id", "document_id")
+    @classmethod
+    def strip_and_check_not_blank(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("must not be blank or whitespace-only")
+        return v
 
 
 @app.post("/flashcards")
@@ -85,10 +116,11 @@ def flashcards_endpoint(request: FlashcardRequest):
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 class PlannerRequest(BaseModel):
-    subjects: list[dict]  # [{"name": str, "priority": int}, ...]
+    subjects: list[dict] = Field(..., min_length=1, max_length=20)
     deadline: str
-    hours_per_day: float
+    hours_per_day: float = Field(..., gt=0, le=16)
     start_date: str | None = None
 
 
