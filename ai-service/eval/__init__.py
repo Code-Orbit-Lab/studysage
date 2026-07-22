@@ -1,0 +1,1 @@
+# Empty - eval/ is a standalone tool, not imported by main.py or other modules.
