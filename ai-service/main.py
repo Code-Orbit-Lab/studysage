@@ -11,6 +11,7 @@ from rag import answer_query
 from summarizer import summarize_document
 from quiz import generate_quiz
 from flashcards import generate_flashcards
+from planner import generate_study_plan
 
 
 app = FastAPI(title="StudySage AI Service", version="0.1.0")
@@ -79,6 +80,22 @@ class FlashcardRequest(BaseModel):
 def flashcards_endpoint(request: FlashcardRequest):
     try:
         return generate_flashcards(request.subject_id, request.document_id, request.card_count, request.difficulty)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class PlannerRequest(BaseModel):
+    subjects: list[dict]  # [{"name": str, "priority": int}, ...]
+    deadline: str
+    hours_per_day: float
+    start_date: str | None = None
+
+
+@app.post("/planner")
+def planner_endpoint(request: PlannerRequest):
+    try:
+        return generate_study_plan(request.subjects, request.deadline, request.hours_per_day, request.start_date)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except RuntimeError as e:
