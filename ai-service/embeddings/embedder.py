@@ -67,3 +67,20 @@ def retrieve(query: str, subject_id: str, k: int = 5) -> list[dict]:
         {"text": doc, "page": meta["page"], "document_id": meta["document_id"]}
         for doc, meta in zip(results["documents"][0], results["metadatas"][0])
     ]
+
+
+def get_all_chunks_for_document(subject_id: str, document_id: str) -> list[dict]:
+    """Returns every stored chunk for one document, ordered by page.
+    Used for whole-document tasks (summaries) where similarity search
+    isn't the right retrieval strategy."""
+    collection = get_collection(subject_id)
+    results = collection.get(where={"document_id": document_id})
+
+    if not results["documents"]:
+        return []
+
+    chunks = [
+        {"text": doc, "page": meta["page"]}
+        for doc, meta in zip(results["documents"], results["metadatas"])
+    ]
+    return sorted(chunks, key=lambda c: c["page"])
