@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from rag import answer_query
 from summarizer import summarize_document
 from quiz import generate_quiz
+from flashcards import generate_flashcards
 
 
 app = FastAPI(title="StudySage AI Service", version="0.1.0")
@@ -61,6 +62,23 @@ class QuizRequest(BaseModel):
 def quiz_endpoint(request: QuizRequest):
     try:
         return generate_quiz(request.subject_id, request.document_id, request.question_count, request.types)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class FlashcardRequest(BaseModel):
+    subject_id: str
+    document_id: str
+    card_count: int = 10
+    difficulty: str = "mixed"
+
+
+@app.post("/flashcards")
+def flashcards_endpoint(request: FlashcardRequest):
+    try:
+        return generate_flashcards(request.subject_id, request.document_id, request.card_count, request.difficulty)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except RuntimeError as e:
