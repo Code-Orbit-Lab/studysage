@@ -5,6 +5,8 @@ Owner: Saurabh
 Run locally:
     uvicorn main:app --reload --port 8001
 """
+import tempfile
+from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
@@ -13,6 +15,9 @@ from summarizer import summarize_document
 from quiz import generate_quiz
 from flashcards import generate_flashcards
 from planner import generate_study_plan
+from parser import parse_document
+from embeddings import chunk_pages, embed_and_store
+from storage import download_from_storage
 
 app = FastAPI(title="StudySage AI Service", version="0.1.0")
 
@@ -132,3 +137,38 @@ def planner_endpoint(request: PlannerRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+class ProcessRequest(BaseModel):
+    document_id: str = Field(..., min_length=1, max_length=100)
+    subject_id: str = Field(..., min_length=1, max_length=100)
+    storage_path: str = Field(..., min_length=1)
+    file_type: str = Field(..., min_length=1, max_length=10)
+
+
+@app.post("/process")
+def process_endpoint(request: ProcessRequest):
+    """
+    Called by the backend after a file is uploaded to Supabase Storage.
+    Downloads, parses, chunks, and embeds the document. Returns 200 on
+    success; the backend's ai_client.py treats any non-200 as failure and
+    marks the document 'failed' rather than retrying automatically.
+    """
+    try:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            local_path = download_from_storage(request.storage_path, Path(tmp_dir))
+            # parse_document dispatches on file extension, so ensure the temp
+            # file has the right suffix even if storage_path doesn't include one
+            if not local_path.suffix:
+                local_path = local_path.with_suffix(f".{request.file_type}")
+
+            pages = parse_document(local_path)
+            chunks = chunk_pages(pages)
+            stored_count = embed_and_store(chunks, subject_id=request.subject_id, document_id=request.document_id)
+
+        return {"status": "ready", "chunk_count": stored_count}
+
+    except RuntimeError as e:
+        # Includes the storage-not-configured case above
+        raise HTTPException(status_code=503, detail=str(e))
+    except (ValueError, NotImplementedError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
