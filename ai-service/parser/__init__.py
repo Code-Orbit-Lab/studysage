@@ -8,8 +8,10 @@ from pathlib import Path
 from .pdf import parse_pdf
 from .docx import parse_docx
 from .pptx import parse_pptx
+from .image import parse_image_file
 
-SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".pptx"}
+SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".png", ".jpg", ".jpeg"}
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
 
 
 def parse_document(path: str | Path) -> list[dict]:
@@ -22,8 +24,7 @@ def parse_document(path: str | Path) -> list[dict]:
         return parse_docx(path)
     elif ext == ".pptx":
         return parse_pptx(path)
+    elif ext in IMAGE_EXTENSIONS:
+        return parse_image_file(path)
     else:
         raise ValueError(f"Unsupported file type: {ext}. Supported: {SUPPORTED_EXTENSIONS}")
-
-# TODO(saurabh): image/scanned-page OCR via pytesseract — needs the Tesseract
-# binary installed system-wide first (see Sprint 2 note on tesseract-5.5.2.zip)

@@ -148,8 +148,8 @@ class ProcessRequest(BaseModel):
     @classmethod
     def validate_file_type(cls, v: str) -> str:
         normalized = v.lower().lstrip(".")
-        if normalized not in {"pdf", "docx", "pptx"}:
-            raise ValueError(f"file_type must be one of pdf, docx, pptx (got {v!r})")
+        if normalized not in {"pdf", "docx", "pptx", "png", "jpg", "jpeg"}:
+            raise ValueError(f"file_type must be one of pdf, docx, pptx, png, jpg, jpeg (got {v!r})")
         return normalized
 
 
