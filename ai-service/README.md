@@ -30,9 +30,17 @@ cp ../.env.example ../.env
 GEMINI_API_KEY=your-key-here # https://aistudio.google.com/apikey
 VECTOR_DB_PATH=./chroma_db
 
-**OCR support** (for scanned PDFs, not yet wired into `parser/`) needs the
-Tesseract binary installed system-wide separately from pip — see the
-Tesseract project docs for your OS if/when this is added.
+**OCR support** (scanned PDFs + standalone images) needs the Tesseract
+binary installed system-wide, separately from pip:
+- Windows: https://github.com/UB-Mannheim/tesseract/wiki
+- Mac: `brew install tesseract`
+- Linux: `sudo apt install tesseract-ocr`
+
+After installing, **fully restart your terminal/IDE** (a new terminal tab
+inside an already-running VS Code won't pick up a fresh PATH — you need to
+fully quit and reopen the application). Verify with `tesseract --version`.
+If tests in `test_parser.py` involving OCR fail with "Tesseract binary not
+found," this is almost always the cause.
 
 ## Running
 
