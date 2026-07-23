@@ -144,6 +144,14 @@ class ProcessRequest(BaseModel):
     storage_path: str = Field(..., min_length=1)
     file_type: str = Field(..., min_length=1, max_length=10)
 
+    @field_validator("file_type")
+    @classmethod
+    def validate_file_type(cls, v: str) -> str:
+        normalized = v.lower().lstrip(".")
+        if normalized not in {"pdf", "docx", "pptx"}:
+            raise ValueError(f"file_type must be one of pdf, docx, pptx (got {v!r})")
+        return normalized
+
 
 @app.post("/process")
 def process_endpoint(request: ProcessRequest):
@@ -156,12 +164,18 @@ def process_endpoint(request: ProcessRequest):
     try:
         with tempfile.TemporaryDirectory() as tmp_dir:
             local_path = download_from_storage(request.storage_path, Path(tmp_dir))
-            # parse_document dispatches on file extension, so ensure the temp
-            # file has the right suffix even if storage_path doesn't include one
-            if not local_path.suffix:
-                local_path = local_path.with_suffix(f".{request.file_type}")
+            # Always trust file_type from the request over whatever suffix
+            # storage_path/download happened to produce - file_type is the
+            # backend's authoritative source of truth for the format, and
+            # parse_document() dispatches purely on file extension.
+            expected_suffix = f".{request.file_type.lstrip('.')}"
+            if local_path.suffix.lower() != expected_suffix.lower():
+                corrected_path = local_path.with_suffix(expected_suffix)
+                local_path.rename(corrected_path)
+                local_path = corrected_path
 
             pages = parse_document(local_path)
+
             chunks = chunk_pages(pages)
             stored_count = embed_and_store(chunks, subject_id=request.subject_id, document_id=request.document_id)
 

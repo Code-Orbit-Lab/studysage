@@ -48,3 +48,44 @@ def test_process_parses_chunks_and_embeds_on_successful_download(mock_download):
 def test_process_rejects_missing_fields():
     response = client.post("/process", json={"document_id": "doc_1"})
     assert response.status_code == 422
+
+def test_process_rejects_invalid_file_type():
+    response = client.post(
+        "/process",
+        json={
+            "document_id": "doc_1",
+            "subject_id": "subj_1",
+            "storage_path": "some/path.xyz",
+            "file_type": "xyz",
+        },
+    )
+    assert response.status_code == 422
+
+
+@patch("main.download_from_storage")
+def test_process_handles_docx_with_mismatched_suffix(mock_download, tmp_path):
+    """Simulates storage returning a file with no/wrong extension - the
+    endpoint should still correctly route to the DOCX parser based on
+    file_type, not whatever suffix the download happened to have."""
+    from docx import Document as DocxDocument
+
+    # Build a minimal real DOCX so parse_docx() has something valid to read
+    fake_download_path = tmp_path / "downloaded_file"  # no extension at all
+    doc = DocxDocument()
+    doc.add_paragraph("This is a test paragraph for the process endpoint DOCX test.")
+    doc.save(fake_download_path)
+
+    mock_download.return_value = fake_download_path
+
+    response = client.post(
+        "/process",
+        json={
+            "document_id": "doc_process_docx_test",
+            "subject_id": "subj_process_docx_test",
+            "storage_path": "fake/path/no_extension_file",
+            "file_type": "docx",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "ready"
+    assert response.json()["chunk_count"] > 0
