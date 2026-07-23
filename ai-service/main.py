@@ -124,9 +124,17 @@ def flashcards_endpoint(request: FlashcardRequest):
 
 class PlannerRequest(BaseModel):
     subjects: list[dict] = Field(..., min_length=1, max_length=20)
-    deadline: str
+    deadline: str = Field(..., min_length=1)
     hours_per_day: float = Field(..., gt=0, le=16)
     start_date: str | None = None
+
+    @field_validator("deadline")
+    @classmethod
+    def strip_and_check_not_blank(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("must not be blank or whitespace-only")
+        return v
 
 
 @app.post("/planner")
@@ -156,10 +164,14 @@ class ProcessRequest(BaseModel):
 @app.post("/process")
 def process_endpoint(request: ProcessRequest):
     """
-    Called by the backend after a file is uploaded to Supabase Storage.
-    Downloads, parses, chunks, and embeds the document. Returns 200 on
-    success; the backend's ai_client.py treats any non-200 as failure and
-    marks the document 'failed' rather than retrying automatically.
+    Called by the backend after a file is uploaded. Downloads (currently
+    local-disk-first, Supabase Storage as a not-yet-configured fallback -
+    see storage.py), parses, chunks, and embeds the document. Returns 200
+    with chunk_count > 0 on success. Returns 422 if parsing produced zero
+    usable content (blank/corrupted document, or an image with no
+    readable text) - the backend's ai_client.py treats any non-200 as
+    failure and marks the document 'failed' rather than retrying
+    automatically.
     """
     try:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -179,6 +191,12 @@ def process_endpoint(request: ProcessRequest):
             chunks = chunk_pages(pages)
             stored_count = embed_and_store(chunks, subject_id=request.subject_id, document_id=request.document_id)
 
+        if stored_count == 0:
+            raise HTTPException(
+                status_code=422,
+                detail="No extractable text found in this document — it may be blank, "
+                       "corrupted, or an image with no readable text.",
+            )
         return {"status": "ready", "chunk_count": stored_count}
 
     except RuntimeError as e:
