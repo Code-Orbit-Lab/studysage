@@ -10,8 +10,7 @@ import os
 import uuid
 from pathlib import Path
 
-STORAGE_ROOT = Path(os.getenv("UPLOAD_STORAGE_DIR", "./uploads"))
-
+STORAGE_ROOT = Path(os.getenv("UPLOAD_STORAGE_DIR", "./uploads")).resolve()
 
 def save_file(user_id: str, subject_id: str, filename: str, content: bytes) -> str:
     """Writes the file to disk, returns the storage_path to save on the
