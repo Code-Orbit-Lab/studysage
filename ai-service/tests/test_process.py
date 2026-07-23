@@ -120,10 +120,13 @@ def test_process_handles_generic_image_file_type(mock_download, tmp_path):
     flow sends for any photographed page, since Sumit's backend
     deliberately doesn't distinguish jpg vs png (security: content-sniffed,
     not extension-trusted)."""
-    from PIL import Image
+    from PIL import Image, ImageDraw
 
     img_path = tmp_path / "downloaded_photo"  # no extension, matches real flow
-    Image.new("RGB", (200, 80), color="white").save(img_path, format="JPEG")
+    img = Image.new("RGB", (400, 100), color="white")
+    draw = ImageDraw.Draw(img)
+    draw.text((10, 40), "STUDY NOTES SAMPLE TEXT", fill="black")
+    img.save(img_path, format="JPEG")
     mock_download.return_value = img_path
 
     response = client.post(
