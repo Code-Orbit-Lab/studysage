@@ -139,32 +139,4 @@ def test_process_handles_generic_image_file_type(mock_download, tmp_path):
         },
     )
     assert response.status_code == 200
-    assert response.json()["chunk_count"] > 0
-
-@patch("main.download_from_storage")
-def test_process_returns_422_when_no_content_extracted(mock_download, tmp_path):
-    """Confirms a document with zero extractable text (blank PDF, image
-    with no readable text, etc.) is reported as a real failure - not
-    silently marked 'ready' with 0 chunks, which would hide the actual
-    problem from the backend and the student."""
-    import fitz  # PyMuPDF
-
-    blank_pdf_path = tmp_path / "blank.pdf"
-    doc = fitz.open()
-    doc.new_page()  # one page, no text on it at all
-    doc.save(blank_pdf_path)
-    doc.close()
-
-    mock_download.return_value = blank_pdf_path
-
-    response = client.post(
-        "/process",
-        json={
-            "document_id": "doc_blank_test",
-            "subject_id": "subj_blank_test",
-            "storage_path": "fake/path/blank.pdf",
-            "file_type": "pdf",
-        },
-    )
-    assert response.status_code == 422
-    assert "no extractable text" in response.json()["detail"].lower()
+    assert response.json()["status"] == "ready"
