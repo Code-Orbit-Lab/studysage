@@ -9,9 +9,10 @@ from sqlalchemy.orm import Session
 
 from auth.dependencies import get_current_user
 from database.session import SessionLocal, get_db
-from models import Document, Subject, User
-from services.ai_client import trigger_processing
+from models import Document, User
+from services.ai_client import summarize_document, trigger_processing
 from services.file_validation import detect_file_type
+from services.ownership import get_owned_document, get_owned_subject
 from services.storage import delete_file, save_file
 
 router = APIRouter()
@@ -34,20 +35,8 @@ class UploadResponse(BaseModel):
     status: str
 
 
-def _get_owned_subject(db: Session, subject_id: uuid.UUID, user: User) -> Subject:
-    subject = db.query(Subject).filter(Subject.id == subject_id).first()
-    if subject is None or subject.user_id != user.id:
-        # 404, not 403 — don't confirm existence of a subject the caller doesn't own
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subject not found")
-    return subject
-
-
-def _get_owned_document(db: Session, document_id: uuid.UUID, user: User) -> Document:
-    document = db.query(Document).filter(Document.id == document_id).first()
-    if document is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
-    _get_owned_subject(db, document.subject_id, user)  # ownership flows through the parent subject
-    return document
+class SummarizeRequest(BaseModel):
+    length: str = "short"  # "short" | "detailed" | "chapter-wise"
 
 
 def _process_in_background(document_id: str, subject_id: str, storage_path: str, file_type: str) -> None:
@@ -72,7 +61,7 @@ async def upload_note(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    _get_owned_subject(db, subject_id, current_user)
+    get_owned_subject(db, subject_id, current_user)
 
     content = await file.read()
     if len(content) > MAX_UPLOAD_SIZE_BYTES:
@@ -111,7 +100,7 @@ def list_notes(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    _get_owned_subject(db, subject_id, current_user)
+    get_owned_subject(db, subject_id, current_user)
     return db.query(Document).filter(Document.subject_id == subject_id).all()
 
 
@@ -121,7 +110,7 @@ def get_note(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return _get_owned_document(db, document_id, current_user)
+    return get_owned_document(db, document_id, current_user)
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -130,7 +119,24 @@ def delete_note(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    document = _get_owned_document(db, document_id, current_user)
+    document = get_owned_document(db, document_id, current_user)
     delete_file(document.storage_path)
     db.delete(document)
     db.commit()
+
+
+@router.post("/{document_id}/summarize")
+def summarize_note(
+    document_id: uuid.UUID,
+    body: SummarizeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    document = get_owned_document(db, document_id, current_user)
+    if document.status != "ready":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Document isn't processed yet")
+
+    result = summarize_document(str(document.subject_id), str(document.id), body.length)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="AI service unavailable")
+    return result
