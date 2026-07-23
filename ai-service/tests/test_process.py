@@ -49,6 +49,7 @@ def test_process_rejects_missing_fields():
     response = client.post("/process", json={"document_id": "doc_1"})
     assert response.status_code == 422
 
+
 def test_process_rejects_invalid_file_type():
     response = client.post(
         "/process",
@@ -69,7 +70,6 @@ def test_process_handles_docx_with_mismatched_suffix(mock_download, tmp_path):
     file_type, not whatever suffix the download happened to have."""
     from docx import Document as DocxDocument
 
-    # Build a minimal real DOCX so parse_docx() has something valid to read
     fake_download_path = tmp_path / "downloaded_file"  # no extension at all
     doc = DocxDocument()
     doc.add_paragraph("This is a test paragraph for the process endpoint DOCX test.")
@@ -91,25 +91,6 @@ def test_process_handles_docx_with_mismatched_suffix(mock_download, tmp_path):
     assert response.json()["chunk_count"] > 0
 
 
-"""File retrieval for /process — local disk (current) + Supabase Storage
-(future). Owner: Saurabh
-
-Sumit's backend currently stores uploads on local disk (see
-backend/services/storage.py docstring: "v1 uses the local filesystem...").
-storage_path values are therefore local filesystem paths, not Supabase keys,
-for now. This only works when ai-service and backend run on the same
-machine/filesystem - genuinely fine for local dev (how the team currently
-runs things), but NOT how this will work once either service is
-containerized/deployed separately (see infrastructure/render.yaml).
-Flagged to Sumit as an open question - not urgent, but a real one.
-
-get_document() checks local disk first; if the path doesn't exist there,
-falls back to attempting Supabase Storage (still unconfigured - fails with
-a clear 503 until real credentials are wired in). This means once Supabase
-IS configured, this file's behavior transitions automatically with zero
-changes needed elsewhere.
-"""
-
 def test_process_uses_local_disk_when_file_exists_there(tmp_path):
     """Confirms the local-disk fallback works without any Supabase mocking -
     this is the actual current path Sumit's backend exercises today."""
@@ -129,3 +110,30 @@ def test_process_uses_local_disk_when_file_exists_there(tmp_path):
     assert response.status_code == 200
     assert response.json()["status"] == "ready"
     assert response.json()["chunk_count"] > 0
+
+
+@patch("main.download_from_storage")
+def test_process_handles_generic_image_file_type(mock_download, tmp_path):
+    """Confirms the file_type='image' value from backend's content-sniffed
+    detection (file_validation.py detect_file_type()) is accepted - not
+    just literal png/jpg/jpeg. This is the ACTUAL value the real upload
+    flow sends for any photographed page, since Sumit's backend
+    deliberately doesn't distinguish jpg vs png (security: content-sniffed,
+    not extension-trusted)."""
+    from PIL import Image
+
+    img_path = tmp_path / "downloaded_photo"  # no extension, matches real flow
+    Image.new("RGB", (200, 80), color="white").save(img_path, format="JPEG")
+    mock_download.return_value = img_path
+
+    response = client.post(
+        "/process",
+        json={
+            "document_id": "doc_image_type_test",
+            "subject_id": "subj_image_type_test",
+            "storage_path": "fake/path/photo",
+            "file_type": "image",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "ready"
