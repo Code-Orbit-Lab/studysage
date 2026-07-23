@@ -148,8 +148,8 @@ class ProcessRequest(BaseModel):
     @classmethod
     def validate_file_type(cls, v: str) -> str:
         normalized = v.lower().lstrip(".")
-        if normalized not in {"pdf", "docx", "pptx", "png", "jpg", "jpeg"}:
-            raise ValueError(f"file_type must be one of pdf, docx, pptx, png, jpg, jpeg (got {v!r})")
+        if normalized not in {"pdf", "docx", "pptx", "png", "jpg", "jpeg", "image"}:
+            raise ValueError(f"file_type must be one of pdf, docx, pptx, png, jpg, jpeg, image (got {v!r})")
         return normalized
 
 
@@ -168,7 +168,7 @@ def process_endpoint(request: ProcessRequest):
             # storage_path/download happened to produce - file_type is the
             # backend's authoritative source of truth for the format, and
             # parse_document() dispatches purely on file extension.
-            expected_suffix = f".{request.file_type.lstrip('.')}"
+            expected_suffix = ".png" if request.file_type == "image" else f".{request.file_type.lstrip('.')}"
             if local_path.suffix.lower() != expected_suffix.lower():
                 corrected_path = local_path.with_suffix(expected_suffix)
                 local_path.rename(corrected_path)
