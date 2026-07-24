@@ -138,5 +138,5 @@ def test_process_handles_generic_image_file_type(mock_download, tmp_path):
             "file_type": "image",
         },
     )
-    assert response.status_code == 422
-    assert "no extractable text" in response.json()["detail"].lower()
+    assert response.status_code == 200
+    assert response.json()["chunk_count"] > 0
