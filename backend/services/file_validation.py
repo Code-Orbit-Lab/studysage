@@ -18,7 +18,7 @@ def detect_file_type(content: bytes) -> str | None:
     filename/extension claims."""
     if content.startswith(_PDF_MAGIC):
         return "pdf"
-    if content.startswith(_JPEG_MAGIC) or content.startswith(_PNG_MAGIC):
+    if content.startswith((_JPEG_MAGIC, _PNG_MAGIC)):
         return "image"
     if content.startswith(_ZIP_MAGIC):
         return _detect_office_type(content)
