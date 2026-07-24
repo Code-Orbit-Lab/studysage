@@ -1,4 +1,5 @@
 """Subject endpoints. Owner: Sumit"""
+
 import uuid
 
 from fastapi import APIRouter, Depends, status

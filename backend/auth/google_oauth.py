@@ -1,4 +1,5 @@
 """Verify a Google Sign-In id_token server-side. Owner: Sumit"""
+
 import os
 
 from google.auth.transport import requests as google_requests
@@ -14,4 +15,6 @@ def verify_google_token(token: str) -> dict:
     """
     if not GOOGLE_CLIENT_ID:
         raise ValueError("GOOGLE_CLIENT_ID is not configured")
-    return google_id_token.verify_oauth2_token(token, google_requests.Request(), GOOGLE_CLIENT_ID)
+    return google_id_token.verify_oauth2_token(
+        token, google_requests.Request(), GOOGLE_CLIENT_ID
+    )

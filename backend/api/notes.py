@@ -1,9 +1,21 @@
 """Notes/upload endpoints — the backend<->AI-service integration point.
 Owner: Sumit."""
+
 import os
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
+"check for error"
+
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    status,
+)
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
@@ -39,7 +51,9 @@ class SummarizeRequest(BaseModel):
     length: str = "short"  # "short" | "detailed" | "chapter-wise"
 
 
-def _process_in_background(document_id: str, subject_id: str, storage_path: str, file_type: str) -> None:
+def _process_in_background(
+    document_id: str, subject_id: str, storage_path: str, file_type: str
+) -> None:
     """Runs after the response is sent — owns its own DB session since the
     request-scoped one is already closed by then."""
     db = SessionLocal()
@@ -53,7 +67,9 @@ def _process_in_background(document_id: str, subject_id: str, storage_path: str,
         db.close()
 
 
-@router.post("/upload", response_model=UploadResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/upload", response_model=UploadResponse, status_code=status.HTTP_202_ACCEPTED
+)
 async def upload_note(
     background_tasks: BackgroundTasks,
     subject_id: uuid.UUID = Form(...),
@@ -65,7 +81,10 @@ async def upload_note(
 
     content = await file.read()
     if len(content) > MAX_UPLOAD_SIZE_BYTES:
-        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="File too large")
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="File too large",
+        )
 
     file_type = detect_file_type(content)
     if file_type is None:
@@ -74,7 +93,9 @@ async def upload_note(
             detail="Unsupported or unrecognized file type",
         )
 
-    storage_path = save_file(str(current_user.id), str(subject_id), file.filename, content)
+    storage_path = save_file(
+        str(current_user.id), str(subject_id), file.filename, content
+    )
 
     document = Document(
         subject_id=subject_id,
@@ -88,7 +109,11 @@ async def upload_note(
     db.refresh(document)
 
     background_tasks.add_task(
-        _process_in_background, str(document.id), str(subject_id), storage_path, file_type
+        _process_in_background,
+        str(document.id),
+        str(subject_id),
+        storage_path,
+        file_type,
     )
 
     return UploadResponse(document_id=document.id, status="processing")
@@ -134,9 +159,14 @@ def summarize_note(
 ):
     document = get_owned_document(db, document_id, current_user)
     if document.status != "ready":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Document isn't processed yet")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Document isn't processed yet"
+        )
 
     result = summarize_document(str(document.subject_id), str(document.id), body.length)
     if result is None:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="AI service unavailable")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI service unavailable",
+        )
     return result

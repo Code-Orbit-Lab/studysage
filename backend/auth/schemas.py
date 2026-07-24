@@ -1,4 +1,5 @@
 """Pydantic request/response models for auth. Owner: Sumit"""
+
 import uuid
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field

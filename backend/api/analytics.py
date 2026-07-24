@@ -8,6 +8,7 @@ granularity instead -- subjects where the user's average quiz score is
 below WEAK_THRESHOLD -- which is the finest grain the current tables
 support. Revisit if/when quiz_questions gets a topic column.
 """
+
 import uuid
 
 from fastapi import APIRouter, Depends
@@ -27,7 +28,9 @@ def get_progress(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    subjects_covered = db.query(Subject).filter(Subject.user_id == current_user.id).count()
+    subjects_covered = (
+        db.query(Subject).filter(Subject.user_id == current_user.id).count()
+    )
 
     attempts = (
         db.query(QuizAttempt, Quiz.subject_id)
@@ -37,21 +40,36 @@ def get_progress(
     )
 
     if not attempts:
-        return {"subjects_covered": subjects_covered, "quiz_avg_score": None, "weak_topics": []}
+        return {
+            "subjects_covered": subjects_covered,
+            "quiz_avg_score": None,
+            "weak_topics": [],
+        }
 
-    scored_attempts = [(a.score / a.total, subject_id) for a, subject_id in attempts if a.total]
-    overall_avg = round(sum(s for s, _ in scored_attempts) / len(scored_attempts) * 100, 1) if scored_attempts else None
+    scored_attempts = [
+        (a.score / a.total, subject_id) for a, subject_id in attempts if a.total
+    ]
+    overall_avg = (
+        round(sum(s for s, _ in scored_attempts) / len(scored_attempts) * 100, 1)
+        if scored_attempts
+        else None
+    )
 
     per_subject_scores: dict[uuid.UUID, list[float]] = {}
     for score_fraction, subject_id in scored_attempts:
         per_subject_scores.setdefault(subject_id, []).append(score_fraction)
 
     weak_subject_ids = [
-        sid for sid, scores in per_subject_scores.items() if (sum(scores) / len(scores)) < WEAK_THRESHOLD
+        sid
+        for sid, scores in per_subject_scores.items()
+        if (sum(scores) / len(scores)) < WEAK_THRESHOLD
     ]
     weak_topics = []
     if weak_subject_ids:
-        weak_topics = [s.name for s in db.query(Subject).filter(Subject.id.in_(weak_subject_ids)).all()]
+        weak_topics = [
+            s.name
+            for s in db.query(Subject).filter(Subject.id.in_(weak_subject_ids)).all()
+        ]
 
     return {
         "subjects_covered": subjects_covered,

@@ -6,11 +6,13 @@ Supabase account/credentials. Swap this module's internals for the
 Supabase Storage SDK when ready — callers only see save_file()/
 delete_file(), nothing outside this file needs to change.
 """
+
 import os
 import uuid
 from pathlib import Path
 
 STORAGE_ROOT = Path(os.getenv("UPLOAD_STORAGE_DIR", "./uploads")).resolve()
+
 
 def save_file(user_id: str, subject_id: str, filename: str, content: bytes) -> str:
     """Writes the file to disk, returns the storage_path to save on the

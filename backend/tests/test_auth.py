@@ -3,6 +3,7 @@ Auth endpoint tests — register/login/me/refresh + key edge cases.
 Owner: Sumit. Requires a running Postgres with migrations applied
 (see README: docker compose up -d && alembic upgrade head).
 """
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -20,6 +21,7 @@ TEST_PASSWORD = "supersecret123"
 def cleanup_test_user():
     """Remove any leftover test user before and after each test, so the
     suite is rerunnable without manual DB resets."""
+
     def _delete():
         db = SessionLocal()
         db.query(User).filter(User.email == TEST_EMAIL).delete()
@@ -54,14 +56,18 @@ def test_duplicate_register_returns_409():
 
 def test_login_with_correct_password():
     _register()
-    r = client.post("/auth/login", json={"email": TEST_EMAIL, "password": TEST_PASSWORD})
+    r = client.post(
+        "/auth/login", json={"email": TEST_EMAIL, "password": TEST_PASSWORD}
+    )
     assert r.status_code == 200
     assert "access_token" in r.json()
 
 
 def test_login_with_wrong_password_returns_401():
     _register()
-    r = client.post("/auth/login", json={"email": TEST_EMAIL, "password": "wrongpassword"})
+    r = client.post(
+        "/auth/login", json={"email": TEST_EMAIL, "password": "wrongpassword"}
+    )
     assert r.status_code == 401
 
 
@@ -77,7 +83,9 @@ def test_me_rejects_garbage_token():
 
 def test_me_returns_current_user_with_valid_token():
     tokens = _register().json()
-    r = client.get("/auth/me", headers={"Authorization": f"Bearer {tokens['access_token']}"})
+    r = client.get(
+        "/auth/me", headers={"Authorization": f"Bearer {tokens['access_token']}"}
+    )
     assert r.status_code == 200
     assert r.json()["email"] == TEST_EMAIL
 
@@ -94,5 +102,7 @@ def test_refresh_issues_new_access_token():
 
 def test_refresh_token_cannot_be_used_as_access_token():
     tokens = _register().json()
-    r = client.get("/auth/me", headers={"Authorization": f"Bearer {tokens['refresh_token']}"})
+    r = client.get(
+        "/auth/me", headers={"Authorization": f"Bearer {tokens['refresh_token']}"}
+    )
     assert r.status_code == 401

@@ -2,16 +2,17 @@ import os
 import sys
 from logging.config import fileConfig
 from pathlib import Path
+
 from dotenv import load_dotenv
+from sqlalchemy import engine_from_config, pool
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
 
 # Make `backend/` importable so `from models import Base` works
 # regardless of where `alembic` is invoked from.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from models import Base  # noqa: E402  (this also imports User/Subject/Document)
+from models import Base
 
 config = context.config
 
@@ -24,7 +25,9 @@ load_dotenv()
 # so credentials never get hardcoded into alembic.ini.
 config.set_main_option(
     "sqlalchemy.url",
-    os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/studysage"),
+    os.getenv(
+        "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/studysage"
+    ),
 )
 
 target_metadata = Base.metadata
@@ -38,8 +41,6 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-
-
 
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),

@@ -1,4 +1,5 @@
 """ChatMessage model — persisted RAG chat turns. Owner: Sumit"""
+
 import uuid
 from datetime import datetime, timezone
 
@@ -19,10 +20,16 @@ class ChatMessage(Base):
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False)
+    subject_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("subjects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     role = Column(String, nullable=False)  # "user" | "assistant"
     content = Column(Text, nullable=False)
     citations = Column(JSONB, nullable=True)  # [{document_id, page, snippet}, ...]
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     subject = relationship("Subject", back_populates="chat_messages")

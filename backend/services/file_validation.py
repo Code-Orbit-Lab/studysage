@@ -3,6 +3,7 @@ Content-based file type detection — never trust the client's filename
 extension or declared Content-Type for security-relevant decisions
 (see docs/07_Security/security.md#file-upload-security). Owner: Sumit.
 """
+
 import io
 import zipfile
 
@@ -18,7 +19,7 @@ def detect_file_type(content: bytes) -> str | None:
     filename/extension claims."""
     if content.startswith(_PDF_MAGIC):
         return "pdf"
-    if content.startswith(_JPEG_MAGIC) or content.startswith(_PNG_MAGIC):
+    if content.startswith((_JPEG_MAGIC, _PNG_MAGIC)):
         return "image"
     if content.startswith(_ZIP_MAGIC):
         return _detect_office_type(content)

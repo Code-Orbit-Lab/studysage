@@ -8,6 +8,7 @@ translation, independent of Saurabh's actual implementation. The
 "unreachable" tests use no mock at all, exercising the real network path
 to prove graceful 503s.
 """
+
 import uuid
 
 import pytest
@@ -30,7 +31,9 @@ PASSWORD = "supersecret123"
 
 def _cleanup():
     db = SessionLocal()
-    db.query(User).filter(User.email.in_([TEST_EMAIL, OTHER_EMAIL])).delete(synchronize_session=False)
+    db.query(User).filter(User.email.in_([TEST_EMAIL, OTHER_EMAIL])).delete(
+        synchronize_session=False
+    )
     db.commit()
     db.close()
 
@@ -38,7 +41,10 @@ def _cleanup():
 @pytest.fixture
 def auth_headers():
     _cleanup()
-    r = client.post("/auth/register", json={"email": TEST_EMAIL, "password": PASSWORD, "name": "Tester"})
+    r = client.post(
+        "/auth/register",
+        json={"email": TEST_EMAIL, "password": PASSWORD, "name": "Tester"},
+    )
     token = r.json()["access_token"]
     yield {"Authorization": f"Bearer {token}"}
     _cleanup()
@@ -46,7 +52,10 @@ def auth_headers():
 
 @pytest.fixture
 def other_user_headers():
-    r = client.post("/auth/register", json={"email": OTHER_EMAIL, "password": PASSWORD, "name": "Other"})
+    r = client.post(
+        "/auth/register",
+        json={"email": OTHER_EMAIL, "password": PASSWORD, "name": "Other"},
+    )
     return {"Authorization": f"Bearer {r.json()['access_token']}"}
 
 
@@ -78,9 +87,14 @@ def _make_ready_document(subject_id: str) -> str:
 
 # ---------- chat ----------
 
+
 def test_chat_requires_a_ready_document(auth_headers):
     subject_id = _create_subject(auth_headers)
-    r = client.post("/chat/query", json={"subject_id": subject_id, "message": "hi"}, headers=auth_headers)
+    r = client.post(
+        "/chat/query",
+        json={"subject_id": subject_id, "message": "hi"},
+        headers=auth_headers,
+    )
     assert r.status_code == 409  # no ready document yet
 
 
@@ -91,11 +105,17 @@ def test_chat_proxies_to_ai_service(auth_headers, monkeypatch):
     monkeypatch.setattr(
         chat_module,
         "query_ai_service",
-        lambda query, sid: {"answer": "It's the powerhouse of the cell.", "citations": [], "flagged_chunks": []},
+        lambda query, sid: {
+            "answer": "It's the powerhouse of the cell.",
+            "citations": [],
+            "flagged_chunks": [],
+        },
     )
 
     r = client.post(
-        "/chat/query", json={"subject_id": subject_id, "message": "What is mitochondria?"}, headers=auth_headers
+        "/chat/query",
+        json={"subject_id": subject_id, "message": "What is mitochondria?"},
+        headers=auth_headers,
     )
     assert r.status_code == 200
     assert "powerhouse" in r.json()["answer"]
@@ -104,24 +124,36 @@ def test_chat_proxies_to_ai_service(auth_headers, monkeypatch):
 def test_chat_returns_503_when_ai_service_unreachable(auth_headers):
     subject_id = _create_subject(auth_headers)
     _make_ready_document(subject_id)
-    r = client.post("/chat/query", json={"subject_id": subject_id, "message": "hi"}, headers=auth_headers)
+    r = client.post(
+        "/chat/query",
+        json={"subject_id": subject_id, "message": "hi"},
+        headers=auth_headers,
+    )
     assert r.status_code == 503  # nothing mocked, real (failing) network call
 
 
 def test_chat_rejects_other_users_subject(auth_headers, other_user_headers):
     subject_id = _create_subject(auth_headers)
-    r = client.post("/chat/query", json={"subject_id": subject_id, "message": "hi"}, headers=other_user_headers)
+    r = client.post(
+        "/chat/query",
+        json={"subject_id": subject_id, "message": "hi"},
+        headers=other_user_headers,
+    )
     assert r.status_code == 404
 
 
 # ---------- quiz ----------
 
+
 def test_quiz_requires_ready_document(auth_headers):
     subject_id = _create_subject(auth_headers)
     db = SessionLocal()
     doc = Document(
-        subject_id=uuid.UUID(subject_id), filename="a.pdf", file_type="pdf",
-        storage_path="/tmp/a.pdf", status="processing",
+        subject_id=uuid.UUID(subject_id),
+        filename="a.pdf",
+        file_type="pdf",
+        storage_path="/tmp/a.pdf",
+        status="processing",
     )
     db.add(doc)
     db.commit()
@@ -129,7 +161,11 @@ def test_quiz_requires_ready_document(auth_headers):
     doc_id = str(doc.id)
     db.close()
 
-    r = client.post("/quiz/generate", json={"document_id": doc_id, "question_count": 5}, headers=auth_headers)
+    r = client.post(
+        "/quiz/generate",
+        json={"document_id": doc_id, "question_count": 5},
+        headers=auth_headers,
+    )
     assert r.status_code == 409
 
 
@@ -140,25 +176,37 @@ def test_quiz_proxies_to_ai_service(auth_headers, monkeypatch):
     monkeypatch.setattr(
         quiz_module,
         "generate_quiz",
-        lambda sid, did, count, types: {"questions": [{"type": "mcq", "question": "...", "answer": "B"}], "question_count": 1},
+        lambda sid, did, count, types: {
+            "questions": [{"type": "mcq", "question": "...", "answer": "B"}],
+            "question_count": 1,
+        },
     )
 
-    r = client.post("/quiz/generate", json={"document_id": doc_id, "question_count": 1}, headers=auth_headers)
+    r = client.post(
+        "/quiz/generate",
+        json={"document_id": doc_id, "question_count": 1},
+        headers=auth_headers,
+    )
     assert r.status_code == 200
     body = r.json()
     assert "quiz_id" in body
     assert len(body["questions"]) == 1
-    assert "correct_answer" not in body["questions"][0]  # never leak the answer key on generate
+    assert (
+        "correct_answer" not in body["questions"][0]
+    )  # never leak the answer key on generate
 
 
 def test_quiz_rejects_other_users_document(auth_headers, other_user_headers):
     subject_id = _create_subject(auth_headers)
     doc_id = _make_ready_document(subject_id)
-    r = client.post("/quiz/generate", json={"document_id": doc_id}, headers=other_user_headers)
+    r = client.post(
+        "/quiz/generate", json={"document_id": doc_id}, headers=other_user_headers
+    )
     assert r.status_code == 404
 
 
 # ---------- flashcards ----------
+
 
 def test_flashcards_proxies_to_ai_service(auth_headers, monkeypatch):
     subject_id = _create_subject(auth_headers)
@@ -167,10 +215,17 @@ def test_flashcards_proxies_to_ai_service(auth_headers, monkeypatch):
     monkeypatch.setattr(
         flashcards_module,
         "generate_flashcards",
-        lambda sid, did, count, difficulty: {"flashcards": [{"question": "Q", "answer": "A", "difficulty": "easy"}], "card_count": 1},
+        lambda sid, did, count, difficulty: {
+            "flashcards": [{"question": "Q", "answer": "A", "difficulty": "easy"}],
+            "card_count": 1,
+        },
     )
 
-    r = client.post("/flashcards/generate", json={"document_id": doc_id, "card_count": 1}, headers=auth_headers)
+    r = client.post(
+        "/flashcards/generate",
+        json={"document_id": doc_id, "card_count": 1},
+        headers=auth_headers,
+    )
     assert r.status_code == 200
     assert r.json()["card_count"] == 1
 
@@ -178,11 +233,14 @@ def test_flashcards_proxies_to_ai_service(auth_headers, monkeypatch):
 def test_flashcards_returns_503_when_unreachable(auth_headers):
     subject_id = _create_subject(auth_headers)
     doc_id = _make_ready_document(subject_id)
-    r = client.post("/flashcards/generate", json={"document_id": doc_id}, headers=auth_headers)
+    r = client.post(
+        "/flashcards/generate", json={"document_id": doc_id}, headers=auth_headers
+    )
     assert r.status_code == 503
 
 
 # ---------- planner ----------
+
 
 def test_planner_resolves_subject_ids_to_names(auth_headers, monkeypatch):
     subject_id = _create_subject(auth_headers, name="Operating Systems")
@@ -213,7 +271,11 @@ def test_planner_rejects_other_users_subject(auth_headers, other_user_headers):
     subject_id = _create_subject(auth_headers)
     r = client.post(
         "/planner/generate",
-        json={"subjects": [{"subject_id": subject_id, "priority": 1}], "deadline": "2026-08-15", "hours_per_day": 3},
+        json={
+            "subjects": [{"subject_id": subject_id, "priority": 1}],
+            "deadline": "2026-08-15",
+            "hours_per_day": 3,
+        },
         headers=other_user_headers,
     )
     assert r.status_code == 404
