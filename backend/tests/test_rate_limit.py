@@ -1,8 +1,14 @@
 """Tests that the LLM-backed endpoints are rate-limited per user
 (20/minute, see services/rate_limit.py). Owner: Sumit.
+
+generate_plan is mocked so each request returns instantly - otherwise
+every call genuinely tries to reach the (unrunning) AI service and times
+out (~8s each per ai_client.py's httpx.Timeout), meaning 21 real requests
+span ~3 minutes and never land within a single 60s rate-limit window.
 """
 import pytest
 from fastapi.testclient import TestClient
+from unittest.mock import patch
 
 from database.session import SessionLocal
 from main import app
@@ -37,31 +43,29 @@ def _create_subject(headers, name="DSA"):
     return r.json()["id"]
 
 
-def test_planner_generate_returns_429_after_20_requests_per_minute(auth_headers):
+@patch("api.planner.generate_plan")
+def test_planner_generate_returns_429_after_20_requests_per_minute(mock_generate_plan, auth_headers):
+    mock_generate_plan.return_value = {"plan": []}  # instant, no real AI service call
     subject_id = _create_subject(auth_headers)
     body = {"subjects": [{"subject_id": subject_id, "priority": 1}], "deadline": "2026-08-15", "hours_per_day": 3}
 
-    # statuses = [client.post("/planner/generate", json=body, headers=auth_headers).status_code for _ in range(21)]
-    
     responses = [
         client.post("/planner/generate", json=body, headers=auth_headers)
         for _ in range(21)
     ]
-
-    for i, r in enumerate(responses, 1):
-        print(f"{i:02d}: {r.status_code} -> {r.text}")
-
     statuses = [r.status_code for r in responses]
 
-    # first 20 hit the real (unmocked, failing) AI service -> 503; the
-    # 21st should be rejected by the limiter before it even tries -> 429
-    assert statuses[:20].count(503) == 20
+    # first 20 succeed (mocked AI service); the 21st should be rejected
+    # by the limiter before it even calls generate_plan -> 429
+    assert statuses[:20].count(200) == 20
     assert statuses[20] == 429
 
 
-def test_rate_limit_is_scoped_per_user(auth_headers):
+@patch("api.planner.generate_plan")
+def test_rate_limit_is_scoped_per_user(mock_generate_plan, auth_headers):
     """A different user's requests shouldn't be blocked by someone else
     exhausting their own limit."""
+    mock_generate_plan.return_value = {"plan": []}
     subject_id = _create_subject(auth_headers)
     body = {"subjects": [{"subject_id": subject_id, "priority": 1}], "deadline": "2026-08-15", "hours_per_day": 3}
     for _ in range(21):
@@ -73,4 +77,4 @@ def test_rate_limit_is_scoped_per_user(auth_headers):
     other_body = {"subjects": [{"subject_id": other_subject_id, "priority": 1}], "deadline": "2026-08-15", "hours_per_day": 3}
 
     r = client.post("/planner/generate", json=other_body, headers=other_headers)
-    assert r.status_code == 503  # not 429 -- this user still has their own fresh bucket
+    assert r.status_code == 200  # not 429 -- this user still has their own fresh bucket

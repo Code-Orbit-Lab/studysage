@@ -18,57 +18,25 @@ from auth.security import decode_token
 
 
 def _rate_limit_key(request: Request) -> str:
-
     """Buckets by authenticated user id when a valid bearer token is
-
     present, falling back to remote IP otherwise. This only needs to be
-
     "good enough" to pick a bucket -- the route's own get_current_user
-
     dependency is what actually rejects bad/missing tokens with a 401."""
-
     auth_header = request.headers.get("Authorization", "")
 
     if auth_header.startswith("Bearer "):
-
         token = auth_header[len("Bearer "):]
-
         try:
-
             payload = decode_token(token)
-
         except JWTError:
-
             payload = None
 
         if payload and payload.get("sub"):
-
             return f"user:{payload['sub']}"
 
     return f"ip:{get_remote_address(request)}"
-'''
-def _rate_limit_key(request: Request) -> str:
-    auth_header = request.headers.get("Authorization", "")
 
-    if auth_header.startswith("Bearer "):
-        token = auth_header[len("Bearer "):]
-        try:
-            payload = decode_token(token)
-            print("PAYLOAD:", payload)
-        except Exception as e:
-            print("DECODE ERROR:", type(e).__name__, e)
-            payload = None
 
-        if payload and payload.get("sub"):
-            key = f"user:{payload['sub']}"
-            print("RATE KEY:", key)
-            return key
-
-    key = f"ip:{get_remote_address(request)}"
-    print("RATE KEY:", key)
-    return key
-'''
-    
 limiter = Limiter(key_func=_rate_limit_key)
 
 # LLM cost control — same budget for all four generation endpoints per
