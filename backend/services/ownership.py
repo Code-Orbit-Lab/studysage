@@ -8,7 +8,7 @@ import uuid
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from models import Document, Subject, User
+from models import Document, Quiz, Subject, User
 
 
 def get_owned_subject(db: Session, subject_id: uuid.UUID, user: User) -> Subject:
@@ -17,6 +17,14 @@ def get_owned_subject(db: Session, subject_id: uuid.UUID, user: User) -> Subject
         # 404, not 403 — don't confirm existence of a subject the caller doesn't own
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subject not found")
     return subject
+
+
+def get_owned_quiz(db: Session, quiz_id: uuid.UUID, user: User) -> Quiz:
+    quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
+    if quiz is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
+    get_owned_subject(db, quiz.subject_id, user)  # ownership flows through the parent subject
+    return quiz
 
 
 def get_owned_document(db: Session, document_id: uuid.UUID, user: User) -> Document:

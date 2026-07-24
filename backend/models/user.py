@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import Column, String, DateTime
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 
 from database.session import Base
 
@@ -17,3 +18,6 @@ class User(Base):
     name = Column(String, nullable=False)
     auth_provider = Column(String, nullable=False, default="email")  # "email" | "google"
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    quiz_attempts = relationship("QuizAttempt", back_populates="user", cascade="all, delete-orphan")
+    study_plans = relationship("StudyPlan", back_populates="user", cascade="all, delete-orphan")

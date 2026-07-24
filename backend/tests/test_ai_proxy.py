@@ -145,7 +145,10 @@ def test_quiz_proxies_to_ai_service(auth_headers, monkeypatch):
 
     r = client.post("/quiz/generate", json={"document_id": doc_id, "question_count": 1}, headers=auth_headers)
     assert r.status_code == 200
-    assert r.json()["question_count"] == 1
+    body = r.json()
+    assert "quiz_id" in body
+    assert len(body["questions"]) == 1
+    assert "correct_answer" not in body["questions"][0]  # never leak the answer key on generate
 
 
 def test_quiz_rejects_other_users_document(auth_headers, other_user_headers):

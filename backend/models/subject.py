@@ -18,3 +18,6 @@ class Subject(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     documents = relationship("Document", back_populates="subject", cascade="all, delete-orphan")
+    chat_messages = relationship("ChatMessage", back_populates="subject", cascade="all, delete-orphan")
+    quizzes = relationship("Quiz", back_populates="subject", cascade="all, delete-orphan")
+    flashcards = relationship("Flashcard", back_populates="subject", cascade="all, delete-orphan")

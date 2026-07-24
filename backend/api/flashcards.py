@@ -9,10 +9,12 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from fastapi import Request
 
+from services.rate_limit import limiter, LLM_ENDPOINT_LIMIT
 from auth.dependencies import get_current_user
 from database.session import get_db
-from models import User
+from models import Flashcard, User
 from services.ai_client import generate_flashcards
 from services.ownership import get_owned_document
 
@@ -26,7 +28,9 @@ class FlashcardGenerateRequest(BaseModel):
 
 
 @router.post("/generate")
+@limiter.limit(LLM_ENDPOINT_LIMIT)
 def generate_flashcards_endpoint(
+    request: Request,
     body: FlashcardGenerateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -38,4 +42,17 @@ def generate_flashcards_endpoint(
     result = generate_flashcards(str(document.subject_id), str(document.id), body.card_count, body.difficulty)
     if result is None:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="AI service unavailable")
+
+    for card in result["flashcards"]:
+        db.add(
+            Flashcard(
+                subject_id=document.subject_id,
+                question=card["question"],
+                answer=card["answer"],
+                difficulty=card.get("difficulty", "mixed"),
+            )
+        )
+
+    db.commit()
+
     return result
