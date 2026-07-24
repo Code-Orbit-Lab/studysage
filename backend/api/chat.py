@@ -1,6 +1,7 @@
 """Chat endpoint — proxies to the AI Service's RAG /query, and persists
 the turn to `chat_messages`. Owner: Sumit.
 """
+
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -35,7 +36,10 @@ def chat_query(
 
     result = query_ai_service(body.message, str(body.subject_id))
     if result is None:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="AI service unavailable")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI service unavailable",
+        )
 
     # Persist the full turn only once we actually have an answer -- a
     # failed AI call leaves nothing behind rather than a question with no

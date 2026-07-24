@@ -1,8 +1,9 @@
 """User model. Owner: Sumit"""
+
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, String, DateTime
+from sqlalchemy import Column, DateTime, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -16,8 +17,16 @@ class User(Base):
     email = Column(String, unique=True, nullable=False, index=True)
     password_hash = Column(String, nullable=True)  # null if Google-OAuth-only
     name = Column(String, nullable=False)
-    auth_provider = Column(String, nullable=False, default="email")  # "email" | "google"
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    auth_provider = Column(
+        String, nullable=False, default="email"
+    )  # "email" | "google"
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
-    quiz_attempts = relationship("QuizAttempt", back_populates="user", cascade="all, delete-orphan")
-    study_plans = relationship("StudyPlan", back_populates="user", cascade="all, delete-orphan")
+    quiz_attempts = relationship(
+        "QuizAttempt", back_populates="user", cascade="all, delete-orphan"
+    )
+    study_plans = relationship(
+        "StudyPlan", back_populates="user", cascade="all, delete-orphan"
+    )

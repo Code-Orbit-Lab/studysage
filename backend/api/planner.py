@@ -5,9 +5,9 @@ our subject_ids instead (so ownership is enforced the normal way) and
 resolves them to names before calling the AI service — the ID<->name
 translation lives here so every other layer stays ID-based.
 """
+
 import uuid
 from datetime import date
-
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -18,7 +18,7 @@ from database.session import get_db
 from models import StudyPlan, User
 from services.ai_client import generate_plan
 from services.ownership import get_owned_subject
-from services.rate_limit import limiter, LLM_ENDPOINT_LIMIT
+from services.rate_limit import LLM_ENDPOINT_LIMIT, limiter
 
 router = APIRouter()
 
@@ -44,16 +44,18 @@ def generate_plan_endpoint(
     current_user: User = Depends(get_current_user),
 ):
     resolved = [
-        {"name": get_owned_subject(db, s.subject_id, current_user).name, "priority": s.priority}
+        {
+            "name": get_owned_subject(db, s.subject_id, current_user).name,
+            "priority": s.priority,
+        }
         for s in body.subjects
     ]
 
-
     result = generate_plan(
-    resolved,
-    body.deadline,
-    body.hours_per_day,
-    body.start_date,
+        resolved,
+        body.deadline,
+        body.hours_per_day,
+        body.start_date,
     )
 
     if result is None:

@@ -9,6 +9,7 @@ processes and the limit becomes "N per instance" instead of "N total" --
 at that point, point slowapi at Redis instead:
     Limiter(key_func=_rate_limit_key, storage_uri=os.getenv("REDIS_URL"))
 """
+
 from fastapi import Request
 from jose import JWTError
 from slowapi import Limiter
@@ -25,7 +26,7 @@ def _rate_limit_key(request: Request) -> str:
     auth_header = request.headers.get("Authorization", "")
 
     if auth_header.startswith("Bearer "):
-        token = auth_header[len("Bearer "):]
+        token = auth_header[len("Bearer ") :]
         try:
             payload = decode_token(token)
         except JWTError:

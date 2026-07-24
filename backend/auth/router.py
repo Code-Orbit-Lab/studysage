@@ -1,4 +1,5 @@
 """Auth endpoints — register, login, Google OAuth, refresh. Owner: Sumit"""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from jose import JWTError
 from sqlalchemy.orm import Session
@@ -27,10 +28,14 @@ from models import User
 router = APIRouter()
 
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED
+)
 def register(body: RegisterRequest, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == body.email).first():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Email already registered"
+        )
 
     user = User(
         email=body.email,
@@ -50,7 +55,9 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(body: LoginRequest, db: Session = Depends(get_db)):
-    invalid = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+    invalid = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password"
+    )
 
     user = db.query(User).filter(User.email == body.email).first()
     if user is None or user.password_hash is None:
@@ -69,12 +76,16 @@ def google_auth(body: GoogleAuthRequest, db: Session = Depends(get_db)):
     try:
         payload = verify_google_token(body.id_token)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google token"
+        )
 
     email = payload["email"]
     user = db.query(User).filter(User.email == email).first()
     if user is None:
-        user = User(email=email, name=payload.get("name", email), auth_provider="google")
+        user = User(
+            email=email, name=payload.get("name", email), auth_provider="google"
+        )
         db.add(user)
         db.commit()
         db.refresh(user)
@@ -87,7 +98,10 @@ def google_auth(body: GoogleAuthRequest, db: Session = Depends(get_db)):
 
 @router.post("/refresh", response_model=AccessTokenResponse)
 def refresh(body: RefreshRequest):
-    unauthorized = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token")
+    unauthorized = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired refresh token",
+    )
     try:
         payload = decode_token(body.refresh_token)
     except JWTError:

@@ -1,4 +1,5 @@
 """Tests for GET /analytics/progress. Owner: Sumit."""
+
 import uuid
 
 import pytest
@@ -25,7 +26,10 @@ def _cleanup():
 @pytest.fixture
 def auth_headers():
     _cleanup()
-    r = client.post("/auth/register", json={"email": TEST_EMAIL, "password": PASSWORD, "name": "Tester"})
+    r = client.post(
+        "/auth/register",
+        json={"email": TEST_EMAIL, "password": PASSWORD, "name": "Tester"},
+    )
     token = r.json()["access_token"]
     yield {"Authorization": f"Bearer {token}"}
     _cleanup()
@@ -40,8 +44,11 @@ def _create_subject(headers, name="DSA"):
 def _make_ready_document(subject_id: str) -> str:
     db = SessionLocal()
     doc = Document(
-        subject_id=uuid.UUID(subject_id), filename="notes.pdf", file_type="pdf",
-        storage_path="/tmp/fake.pdf", status="ready",
+        subject_id=uuid.UUID(subject_id),
+        filename="notes.pdf",
+        file_type="pdf",
+        storage_path="/tmp/fake.pdf",
+        status="ready",
     )
     db.add(doc)
     db.commit()
@@ -65,20 +72,34 @@ def test_progress_reflects_quiz_attempts(auth_headers, monkeypatch):
     subject_id = _create_subject(auth_headers, name="Weak Subject")
     doc_id = _make_ready_document(subject_id)
     monkeypatch.setattr(
-        quiz_module, "generate_quiz",
+        quiz_module,
+        "generate_quiz",
         lambda sid, did, count, types: {
             "questions": [
-                {"type": "mcq", "question": "2+2?", "options": ["3", "4"], "answer": "4"},
+                {
+                    "type": "mcq",
+                    "question": "2+2?",
+                    "options": ["3", "4"],
+                    "answer": "4",
+                },
                 {"type": "true_false", "question": "Sky is blue", "answer": "true"},
             ],
         },
     )
-    gen = client.post("/quiz/generate", json={"document_id": doc_id, "question_count": 2}, headers=auth_headers)
+    gen = client.post(
+        "/quiz/generate",
+        json={"document_id": doc_id, "question_count": 2},
+        headers=auth_headers,
+    )
     quiz_id = gen.json()["quiz_id"]
     q_ids = [q["id"] for q in gen.json()["questions"]]
 
     # get 0/2 -- should show up as a weak topic
-    client.post(f"/quiz/{quiz_id}/submit", json={"answers": {q_ids[0]: "3", q_ids[1]: "false"}}, headers=auth_headers)
+    client.post(
+        f"/quiz/{quiz_id}/submit",
+        json={"answers": {q_ids[0]: "3", q_ids[1]: "false"}},
+        headers=auth_headers,
+    )
 
     r = client.get("/analytics/progress", headers=auth_headers)
     assert r.status_code == 200

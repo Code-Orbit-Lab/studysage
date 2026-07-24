@@ -4,19 +4,19 @@ Owner: Sumit.
 No persistence yet (no flashcards table) — returns the generated cards
 directly; saving them for spaced review is a follow-up.
 """
+
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from fastapi import Request
 
-from services.rate_limit import limiter, LLM_ENDPOINT_LIMIT
 from auth.dependencies import get_current_user
 from database.session import get_db
 from models import Flashcard, User
 from services.ai_client import generate_flashcards
 from services.ownership import get_owned_document
+from services.rate_limit import LLM_ENDPOINT_LIMIT, limiter
 
 router = APIRouter()
 
@@ -37,11 +37,18 @@ def generate_flashcards_endpoint(
 ):
     document = get_owned_document(db, body.document_id, current_user)
     if document.status != "ready":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Document isn't processed yet")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Document isn't processed yet"
+        )
 
-    result = generate_flashcards(str(document.subject_id), str(document.id), body.card_count, body.difficulty)
+    result = generate_flashcards(
+        str(document.subject_id), str(document.id), body.card_count, body.difficulty
+    )
     if result is None:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="AI service unavailable")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI service unavailable",
+        )
 
     for card in result["flashcards"]:
         db.add(

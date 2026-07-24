@@ -2,6 +2,7 @@
 persists the quiz + its questions; submission scores an attempt against
 the stored answer key. Owner: Sumit.
 """
+
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -34,11 +35,18 @@ def generate_quiz_endpoint(
 ):
     document = get_owned_document(db, body.document_id, current_user)
     if document.status != "ready":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Document isn't processed yet")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Document isn't processed yet"
+        )
 
-    result = generate_quiz(str(document.subject_id), str(document.id), body.question_count, body.types)
+    result = generate_quiz(
+        str(document.subject_id), str(document.id), body.question_count, body.types
+    )
     if result is None:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="AI service unavailable")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI service unavailable",
+        )
 
     quiz = Quiz(subject_id=document.subject_id)
     db.add(quiz)
@@ -64,7 +72,8 @@ def generate_quiz_endpoint(
     return {
         "quiz_id": quiz.id,
         "questions": [
-            {"id": q.id, "type": q.type, "prompt": q.prompt, "options": q.options} for q in questions
+            {"id": q.id, "type": q.type, "prompt": q.prompt, "options": q.options}
+            for q in questions
         ],
     }
 
@@ -83,18 +92,31 @@ def submit_quiz(
     quiz = get_owned_quiz(db, quiz_id, current_user)
     questions = db.query(QuizQuestion).filter(QuizQuestion.quiz_id == quiz.id).all()
     if not questions:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Quiz has no questions")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Quiz has no questions"
+        )
 
     review = []
     score = 0
     for q in questions:
         submitted = body.answers.get(str(q.id))
-        correct = submitted is not None and submitted.strip().lower() == q.correct_answer.strip().lower()
+        correct = (
+            submitted is not None
+            and submitted.strip().lower() == q.correct_answer.strip().lower()
+        )
         if correct:
             score += 1
-        review.append({"question_id": q.id, "correct": correct, "correct_answer": q.correct_answer})
+        review.append(
+            {
+                "question_id": q.id,
+                "correct": correct,
+                "correct_answer": q.correct_answer,
+            }
+        )
 
-    attempt = QuizAttempt(quiz_id=quiz.id, user_id=current_user.id, score=score, total=len(questions))
+    attempt = QuizAttempt(
+        quiz_id=quiz.id, user_id=current_user.id, score=score, total=len(questions)
+    )
     db.add(attempt)
     db.commit()
 

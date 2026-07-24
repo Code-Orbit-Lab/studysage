@@ -4,6 +4,7 @@ Requires a running Postgres with migrations applied. No AI Service needs
 to be running — these tests specifically also verify the upload endpoint
 degrades gracefully (marks a document 'failed') when it isn't.
 """
+
 import io
 import zipfile
 
@@ -41,7 +42,9 @@ def _make_pptx_bytes() -> bytes:
 
 def _cleanup_test_users():
     db = SessionLocal()
-    db.query(User).filter(User.email.in_([TEST_EMAIL, OTHER_EMAIL])).delete(synchronize_session=False)
+    db.query(User).filter(User.email.in_([TEST_EMAIL, OTHER_EMAIL])).delete(
+        synchronize_session=False
+    )
     db.commit()
     db.close()
 
@@ -52,7 +55,10 @@ def auth_headers():
     Cleanup here also covers OTHER_EMAIL so other_user_headers below
     always starts clean."""
     _cleanup_test_users()
-    r = client.post("/auth/register", json={"email": TEST_EMAIL, "password": PASSWORD, "name": "Notes Tester"})
+    r = client.post(
+        "/auth/register",
+        json={"email": TEST_EMAIL, "password": PASSWORD, "name": "Notes Tester"},
+    )
     token = r.json()["access_token"]
     yield {"Authorization": f"Bearer {token}"}
     _cleanup_test_users()
@@ -60,7 +66,10 @@ def auth_headers():
 
 @pytest.fixture
 def other_user_headers():
-    r = client.post("/auth/register", json={"email": OTHER_EMAIL, "password": PASSWORD, "name": "Other User"})
+    r = client.post(
+        "/auth/register",
+        json={"email": OTHER_EMAIL, "password": PASSWORD, "name": "Other User"},
+    )
     token = r.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
@@ -89,14 +98,22 @@ def test_create_and_list_subjects(auth_headers):
 
 def test_upload_pdf_succeeds(auth_headers):
     subject_id = _create_subject(auth_headers)
-    r = _upload(subject_id, "notes.pdf", _make_pdf_bytes(), "application/pdf", auth_headers)
+    r = _upload(
+        subject_id, "notes.pdf", _make_pdf_bytes(), "application/pdf", auth_headers
+    )
     assert r.status_code == 202
     assert r.json()["status"] == "processing"
 
 
 def test_upload_docx_detected_by_content_not_extension(auth_headers):
     subject_id = _create_subject(auth_headers)
-    r = _upload(subject_id, "notes.docx", _make_docx_bytes(), "application/octet-stream", auth_headers)
+    r = _upload(
+        subject_id,
+        "notes.docx",
+        _make_docx_bytes(),
+        "application/octet-stream",
+        auth_headers,
+    )
     assert r.status_code == 202
     doc_id = r.json()["document_id"]
 
@@ -106,7 +123,13 @@ def test_upload_docx_detected_by_content_not_extension(auth_headers):
 
 def test_upload_pptx_detected_by_content(auth_headers):
     subject_id = _create_subject(auth_headers)
-    r = _upload(subject_id, "slides.pptx", _make_pptx_bytes(), "application/octet-stream", auth_headers)
+    r = _upload(
+        subject_id,
+        "slides.pptx",
+        _make_pptx_bytes(),
+        "application/octet-stream",
+        auth_headers,
+    )
     assert r.status_code == 202
     doc_id = r.json()["document_id"]
 
@@ -125,18 +148,27 @@ def test_upload_rejects_mislabeled_file():
     rejected — the whole point of content-based detection over trusting
     the extension."""
     from services.file_validation import detect_file_type
+
     assert detect_file_type(b"not actually a pdf") is None
 
 
 def test_upload_to_nonexistent_subject_returns_404(auth_headers):
     fake_subject_id = "00000000-0000-0000-0000-000000000000"
-    r = _upload(fake_subject_id, "notes.pdf", _make_pdf_bytes(), "application/pdf", auth_headers)
+    r = _upload(
+        fake_subject_id, "notes.pdf", _make_pdf_bytes(), "application/pdf", auth_headers
+    )
     assert r.status_code == 404
 
 
 def test_cannot_upload_to_another_users_subject(auth_headers, other_user_headers):
     subject_id = _create_subject(auth_headers)  # owned by TEST_EMAIL
-    r = _upload(subject_id, "notes.pdf", _make_pdf_bytes(), "application/pdf", other_user_headers)
+    r = _upload(
+        subject_id,
+        "notes.pdf",
+        _make_pdf_bytes(),
+        "application/pdf",
+        other_user_headers,
+    )
     assert r.status_code == 404  # not 403 — existence isn't confirmed either
 
 
@@ -144,7 +176,9 @@ def test_ai_service_unreachable_marks_document_failed(auth_headers):
     """No AI Service runs in this test environment — proves the upload
     endpoint degrades gracefully instead of hanging or crashing."""
     subject_id = _create_subject(auth_headers)
-    r = _upload(subject_id, "notes.pdf", _make_pdf_bytes(), "application/pdf", auth_headers)
+    r = _upload(
+        subject_id, "notes.pdf", _make_pdf_bytes(), "application/pdf", auth_headers
+    )
     doc_id = r.json()["document_id"]
 
     got = client.get(f"/notes/{doc_id}", headers=auth_headers)
@@ -153,16 +187,23 @@ def test_ai_service_unreachable_marks_document_failed(auth_headers):
 
 def test_upload_rejects_oversized_file(auth_headers, monkeypatch):
     import api.notes as notes_module
-    monkeypatch.setattr(notes_module, "MAX_UPLOAD_SIZE_BYTES", 10)  # tiny limit for this test
+
+    monkeypatch.setattr(
+        notes_module, "MAX_UPLOAD_SIZE_BYTES", 10
+    )  # tiny limit for this test
 
     subject_id = _create_subject(auth_headers)
-    r = _upload(subject_id, "notes.pdf", _make_pdf_bytes(), "application/pdf", auth_headers)
+    r = _upload(
+        subject_id, "notes.pdf", _make_pdf_bytes(), "application/pdf", auth_headers
+    )
     assert r.status_code == 413
 
 
 def test_delete_note(auth_headers):
     subject_id = _create_subject(auth_headers)
-    r = _upload(subject_id, "notes.pdf", _make_pdf_bytes(), "application/pdf", auth_headers)
+    r = _upload(
+        subject_id, "notes.pdf", _make_pdf_bytes(), "application/pdf", auth_headers
+    )
     doc_id = r.json()["document_id"]
 
     d = client.delete(f"/notes/{doc_id}", headers=auth_headers)

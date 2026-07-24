@@ -1,4 +1,5 @@
 """Password hashing + JWT create/verify. Owner: Sumit"""
+
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -35,7 +36,9 @@ def _create_token(subject: str, expires_delta: timedelta, token_type: str) -> st
 
 
 def create_access_token(user_id: str) -> str:
-    return _create_token(user_id, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES), "access")
+    return _create_token(
+        user_id, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES), "access"
+    )
 
 
 def create_refresh_token(user_id: str) -> str:
